@@ -1,0 +1,27 @@
+dist: bionic
+language: go
+go:
+- 1.19.x
+env:
+  global:
+  - GO111MODULE=on
+git:
+  depth: 1
+install: true
+script:
+- go mod vendor
+- export GIT_VERSION=$(git describe --tags --long --always)
+- GOOS=linux GOARCH=amd64 go build -mod vendor -ldflags "-X main.version=${GIT_VERSION}"
+  -o build/nomad-node-state-exporter.linux-amd64 .
+- sha256sum build/nomad-node-state-exporter.linux-amd64 > build/nomad-node-state-exporter.linux-amd64.sha256sum
+deploy:
+  provider: releases
+  api_key:
+    secure: q0PqSFumCX53L55+YtrmbM2Bqm9UgyVr0BLn/3QOWPk/J9NClsc5GDsft+3TVPCY4xmPoRE2sFQkd38M++sMXg8pQMB1VeDheORFEz4JdDxu5lVb1MSA3WhdXUhHBi1/Pn7m+8XMdY2JLptZWSM8FjC5IGIxRcEFoPcRGSYB023zOpggu1JVr0bvVfgNo0kZGGimhDFEXyM77ZqeJB3YDo6ff4Hsc8WzYmUe8nadtwhjOyCOiKo2uxLGHbmN9eX/+26zz6M1kOQCXU7NkIyEuRWv1B67iH2/raqVC548ytChx9AxizJiJchbzZqi4pVJJ0p+sqW7l77rp34D4vDIoJkTNTnw9TrznEIebvnReNcBpuq7zhiTVdi5J66ls2PlgYtidXwm2akEvuktQ0OoFA4RZAc6tZ3vOn+IeXxPoDB0XZc+VGSwwMJozUFUj85oLGhrkLhm9x16pflsI1awaLr+gqzPW+htfNoX/nUt045HseuNINws4we6l9YTUXC4BscouUt17ZZ+swjlw5g1wmB5IcPwkDRvJ9VkABnw3nLEUiTuhCEggIt5GjHiVoD0qc26Ee8/U69B9yOB2zgZWykl5v1QsHquiBZh9Jam/XFj0vtD6RlW39n+5HGXwB0UG+KaL6jNseVXqtG/wGAfBbTW9bZMfJ1S4GxqURIGcOI=
+  file: ''
+  on:
+    repo: arsiesys/nomad-node-state-exporter
+    tags: true
+  skip_cleanup: 'true'
+  file_glob: true
+  file: build/*
