@@ -38,14 +38,11 @@ var labelNames = []string{
 	"nodeClass",
 }
 
-func getData(endpoint string) string {
-	client := &http.Client{Timeout: 10 * time.Second}
-	var url string = viper.GetString("address")
-	req, err := http.NewRequest("GET", url+endpoint, nil)
-	if err != nil {
-		log.Println(err)
-		return "unknown"
-	}
+func getClient() *http.Client {
+	client := &http.Client{Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxConnsPerHost: 1,
+		}}
 	if !viper.GetBool("disable-authentication") {
 		// Load client cert
 		cert, err := tls.LoadX509KeyPair(viper.GetString("cert"), viper.GetString("key"))
@@ -67,10 +64,22 @@ func getData(endpoint string) string {
 			RootCAs:      caCertPool,
 		}
 
-		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+			MaxConnsPerHost: 1,
+		}
 		client = &http.Client{Transport: transport, Timeout: 10 * time.Second}
 	}
+	return client
+}
 
+func getData(client *http.Client, endpoint string) string {
+	var url string = viper.GetString("address")
+	req, err := http.NewRequest("GET", url+endpoint, nil)
+	if err != nil {
+		log.Println(err)
+		return "unknown"
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Println(err)
@@ -110,9 +119,10 @@ func promWatchNomadNodes(registry prometheus.Registry) {
 	listOfKnownComputer := map[string]computer{}
 
 	go func() {
+		client := getClient()
 		for {
 			// Get Nodes Data
-			nodesApiJsonData := getData("/v1/nodes")
+			nodesApiJsonData := getData(client, "/v1/nodes")
 			var computerList []computer
 			if err := json.Unmarshal([]byte(nodesApiJsonData), &computerList); err != nil {
 				log.Printf("promWatchNomadNodes: error parsing nodes JSON (%s) => retrying in 5s\n", err.Error())
@@ -123,7 +133,7 @@ func promWatchNomadNodes(registry prometheus.Registry) {
 
 			// Get Allocations Data
 			baseFilter := url.QueryEscape("ClientStatus contains \"running\" and " + viper.GetString("filter"))
-			allocationsApiJsonData := getData("/v1/allocations?task_states=False&filter=" + baseFilter)
+			allocationsApiJsonData := getData(client, "/v1/allocations?task_states=False&filter="+baseFilter)
 			var allocationList []allocation
 			if err := json.Unmarshal([]byte(allocationsApiJsonData), &allocationList); err != nil {
 				log.Printf("promWatchNomadNodes: error parsing allocations JSON (%s) => retrying in 5s\n", err.Error())
